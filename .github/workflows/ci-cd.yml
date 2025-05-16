@@ -95,5 +95,5 @@ jobs:
         run: |
           aws ecs update-service \
             --cluster department-cluster \
-            --service department-service \
+            --service department-task-service-76g9iszy  \
             --force-new-deployment
