@@ -76,9 +76,7 @@ public class DepartmentController {
             department.setLocation(newDepartment.getLocation());
             return repository.save(department);
           }) //
-          .orElseGet(() -> {
-            return repository.save(newDepartment);
-          });
+          .orElseGet(() ->  repository.save(newDepartment));
     
       EntityModel<Department> entityModel = assembler.toModel(updatedDepartment);
     
