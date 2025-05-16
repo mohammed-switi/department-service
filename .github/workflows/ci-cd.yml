@@ -54,8 +54,6 @@ jobs:
 
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
-        with:
-          region: us-east-1
 
       - name: Build, tag, and push image
         uses: docker/build-push-action@v3
