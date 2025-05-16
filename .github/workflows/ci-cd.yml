@@ -49,20 +49,34 @@ jobs:
       contents: read
       packages: write
     steps:
+      # 1) Configure AWS credentials & region for this job
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}   # omit if not using session tokens
+          aws-region:            us-east-1
+
+      # 2) Checkout the code
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # 3) Log in to Amazon ECR (region now set)
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
         with:
-          region: ${{ secrets.AWS_REGION }}
+          region: us-east-1
 
+      # 4) Build, tag, and push the Docker image
       - name: Build, tag, and push image
         uses: docker/build-push-action@v3
         with:
           context: .
           push: true
-          tags: 398453103114.dkr.ecr.us-east-1.amazonaws.com/department_service:${{ github.sha }}
+          tags: |
+            398453103114.dkr.ecr.us-east-1.amazonaws.com/department_service:${{ github.sha }}
+            398453103114.dkr.ecr.us-east-1.amazonaws.com/department_service:latest
 
   deploy:
     name: Deploy to ECS
@@ -72,14 +86,14 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}   # omit if not using session tokens
+          aws-region:            us-east-1
 
       - name: Update ECS service
         run: |
           aws ecs update-service \
             --cluster department-cluster \
-            --service department-service \
+            --service department-task-service-76g9iszy  \
             --force-new-deployment
-
