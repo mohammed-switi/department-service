@@ -90,7 +90,12 @@
 			<artifactId>spring-boot-starter-test</artifactId>
 			<scope>test</scope>
 		</dependency>
+
+
+		<!-- https://mvnrepository.com/artifact/org.mockito/mockito-inline -->
+
 	</dependencies>
+<!-- https://mvnrepository.com/artifact/org.mockito/mockito-inline -->
 
 	<build>
 		<plugins>
