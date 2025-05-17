@@ -12,11 +12,6 @@ on:
       - staging
       - main
 
-env:
-  AWS_REGION: us-east-1
-  ECR_REGISTRY: 398453103114.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
-  IMAGE_REPO: department_service
-
 jobs:
   build-and-test:
     name: Build & Test
@@ -61,7 +56,7 @@ jobs:
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+          aws-region:            ${{ secrets.AWS_REGION }}
 
       - name: Checkout code
         uses: actions/checkout@v3
@@ -69,37 +64,45 @@ jobs:
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image
+      - name: Build, tag & push Docker image
         uses: docker/build-push-action@v3
         with:
           context: .
           push: true
           tags: |
-            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:${{ github.sha }}
-            ${{ env.ECR_REGISTRY }}/${{ env.IMAGE_REPO }}:latest
+            398453103114.dkr.ecr.us-east-1.amazonaws.com/department_service:${{ github.sha }}
+            398453103114.dkr.ecr.us-east-1.amazonaws.com/department_service:latest
 
   deploy:
     name: Deploy to ECS
     needs: docker-build-push
     runs-on: ubuntu-latest
-    env:
-      ENVIRONMENT: >
-        ${{ github.ref_name == 'main'     && 'prod'
-           || github.ref_name == 'staging' && 'staging'
-           ||                                  'dev' }}
-      CLUSTER_NAME: department-cluster-${{ env.ENVIRONMENT }}
-      SERVICE_NAME: department-service-${{ env.ENVIRONMENT }}
     steps:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region:            ${{ env.AWS_REGION }}
+          aws-region:            ${{ secrets.AWS_REGION }}
 
-      - name: Update ECS service
+      - name: Deploy to the right ECS service
         run: |
+          # Determine environment from branch name
+          ref=${GITHUB_REF##*/}
+          if [ "$ref" = "main" ]; then
+            envname=prod
+          elif [ "$ref" = "staging" ]; then
+            envname=staging
+          else
+            envname=dev
+          fi
+
+          # Construct cluster & service names
+          cluster=department-cluster-$envname
+          service=department-service-$envname
+
+          echo "Deploying to $cluster / $service"
           aws ecs update-service \
-            --cluster $CLUSTER_NAME \
-            --service $SERVICE_NAME \
+            --cluster "$cluster" \
+            --service "$service" \
             --force-new-deployment
