@@ -1,66 +1,116 @@
-## Branching Strategy (GitFlow)
+# department\_service Microservice
 
-### Branch Naming Conventions
-
-- **main**  
-  – Always contains production-ready code.  
-- **develop**  
-  – Integration branch for ongoing development.  
-- **feature/***<name>***  
-  – New features or enhancements.  
-  – Branch off `develop`, e.g. `feature/add-health-endpoint`.  
-- **release/***<version>***  
-  – Preparation for a new release.  
-  – Branch off `develop`, e.g. `release/1.2.0`.  
-- **hotfix/***<issue>***  
-  – Urgent fixes to production.  
-  – Branch off `main`, e.g. `hotfix/fix-nullpointer`.  
-- **support/***<version>***  
-  – Maintenance on older releases (optional).  
-  – Branch off `main`, e.g. `support/1.1.x`.
-
-### Merge Policies
-
-1. **Pull Requests Only**  
-   - All changes must be merged via pull request (PR).  
-   - No direct pushes to `main` or `develop`.
-
-2. **Review & Approvals**  
-   - At least **one** approving review required before merge.  
-   - The author may not approve their own PR.
-
-3. **Status Checks**  
-   - CI build must pass (compile + tests + static analysis).  
-   - Coverage and lint checks must all be green.
-
-4. **Fast-Forward Merges**  
-   - Prefer fast-forward or “Squash and merge” to keep history clean.  
-   - For release and hotfix merges, include the version tag in the commit message.
-
-5. **Cleaning Up**  
-   - Delete feature/release/hotfix branches after merge.  
-   - Tag `main` after merging a `release/` or `hotfix/` branch, e.g. `v1.2.0`.
+This repository contains the **department\_service** Spring Boot REST API microservice, with a fully automated GitHub Actions CI/CD pipeline supporting **dev**, **staging**, and **prod** environments.
 
 ---
 
-*Example Workflow:*  
+## Branching Strategy (GitFlow)
+
+* **main**: Production-ready code (deployed to **prod**)
+* **staging**: Pre-production staging (deployed to **staging**)
+* **develop**: Ongoing development (deployed to **dev**)
+* **feature/**\*: Feature branches off `develop`
+* **release/**\*: Release preparation off `develop`
+* **hotfix/**\*: Production fixes off `main`
+
+---
+
+## Environments
+
+Each branch triggers deployment to its corresponding AWS ECS cluster and service:
+
+| Environment | Branch  | Cluster                      | Service                      | URL                        |
+| ----------- | ------- | ---------------------------- | ---------------------------- | -------------------------- |
+| Development | develop | `department-cluster-dev`     | `department-service-dev`     | `http://<dev-ip>:8080`     |
+| Staging     | staging | `department-cluster-staging` | `department-service-staging` | `http://<staging-ip>:8080` |
+| Production  | main    | `department-cluster-prod`    | `department-service-prod`    | `http://<prod-ip>:8080`    |
+
+> Replace `<dev-ip>`, `<staging-ip>`, and `<prod-ip>` with the actual public IPs or ALB DNS names after deployment.
+
+---
+
+## CI/CD Pipeline
+
+Defined in `.github/workflows/ci-cd.yml`, the pipeline runs on pushes and PRs to **develop**, **staging**, and **main**:
+
+1. **Build & Test**
+
+   * Checkout code
+   * Set up JDK 21
+   * Cache Maven dependencies
+   * Run `mvn clean package`, `mvn test`, `mvn checkstyle:check`
+
+2. **Docker Build & Push**
+
+   * Configure AWS credentials
+   * Login to Amazon ECR
+   * Build Docker image
+   * Tag and push both `${{ github.sha }}` and `latest` to `398453103114.dkr.ecr.us-east-1.amazonaws.com/department_service`
+
+3. **Deploy to ECS**
+
+   * Determine environment (`dev`, `staging`, `prod`) from the branch name
+   * Update ECS service with `aws ecs update-service --force-new-deployment`
+
+4. **Email Notifications**
+
+   * Success and failure alerts sent via Gmail SMTP through GitHub Actions
+
+---
+
+## API Endpoints
+
+Base URL: `http://<environment-url>:8080`
+
+| Method | Path                | Description                   |
+| ------ | ------------------- | ----------------------------- |
+| GET    | `/departments`      | Retrieve all departments      |
+| POST   | `/departments`      | Create a new department       |
+| GET    | `/departments/{id}` | Retrieve a department by ID   |
+| PUT    | `/departments/{id}` | Update an existing department |
+| DELETE | `/departments/{id}` | Delete a department           |
+
+### Swagger UI
+
+Explore the interactive API docs:
+
+```
+http://<environment-url>:8080/swagger-ui.html
+```
+
+---
+
+## Rollback Procedure
+
+To roll back to the previous working version in any environment, run:
+
 ```bash
-# Start a feature
-git checkout develop
-git checkout -b feature/new-endpoint
+./rollback.sh <environment>
+```
 
-# Push & open PR
-git push -u origin feature/new-endpoint
-# → Open PR targeting `develop`
+Example:
 
-# After approval & CI:
-# Merge PR → develop, delete branch
+```bash
+./rollback.sh dev
+```
 
-# Create a release
-git checkout develop
-git checkout -b release/1.2.0
-# Bump version, finalize
-git push -u origin release/1.2.0
-# → Open PR targeting `main`
-# After merge: tag main (`v1.2.0`), merge back into develop, delete release branch
+---
+
+## Infrastructure-as-Code
+
+All AWS resources (VPC, subnets, security groups, ECR, ECS clusters, task definitions, services) are defined in the `infra/` directory using Terraform.
+
+To provision:
+
+```bash
+cd infra
+terraform init
+terraform apply
+```
+
+Adjust variables in `variables.tf` as needed for your account and environment.
+
+---
+
+*End of README*
 
