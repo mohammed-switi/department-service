@@ -1,13 +1,10 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - develop
-      - main
   pull_request:
     branches:
       - develop
+      - staging
       - main
 
 jobs:
@@ -49,27 +46,23 @@ jobs:
       contents: read
       packages: write
     steps:
-      # 1) Configure AWS credentials & region for this job
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v2
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}   # omit if not using session tokens
-          aws-region:            us-east-1
+          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region:            ${{ secrets.AWS_REGION }}
 
-      # 2) Checkout the code
       - name: Checkout code
         uses: actions/checkout@v3
 
-      # 3) Log in to Amazon ECR (region now set)
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
         with:
-          region: us-east-1
+          region: ${{ secrets.AWS_REGION }}
 
-      # 4) Build, tag, and push the Docker image
-      - name: Build, tag, and push image
+      - name: Build, tag & push Docker image
         uses: docker/build-push-action@v3
         with:
           context: .
@@ -88,12 +81,67 @@ jobs:
         with:
           aws-access-key-id:     ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}   # omit if not using session tokens
-          aws-region:            us-east-1
-
-      - name: Update ECS service
+          aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}
+          aws-region:            ${{ secrets.AWS_REGION }}
+      - name : Determine environment
+        id: env
         run: |
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            REF="$PR_BASE_REF"
+          else
+            REF="${GITHUB_REF##*/}"
+          fi
+
+          case "$REF" in
+            main)      echo "ENV=production"  >> $GITHUB_ENV ;;
+            staging)   echo "ENV=pre-prod"    >> $GITHUB_ENV ;;
+            develop)   echo "ENV=development" >> $GITHUB_ENV ;;
+            *)         echo "ENV=development" >> $GITHUB_ENV ;;
+          esac
+
+      - name: Deploy to the right ECS service
+        run: |
+
+          CLUSTER_NAME="department-cluster-${ENV}"
+          SERVICE_NAME="department-task-service-${ENV}"
+          echo "Deploying to cluster=$CLUSTER_NAME service=$SERVICE_NAME"
+
+          echo "Deploying to $cluster / $service"
           aws ecs update-service \
-            --cluster department-cluster \
-            --service department-task-service-76g9iszy  \
+            --cluster  "$CLUSTER_NAME" \
+            --service  "$SERVICE_NAME" \
             --force-new-deployment
+
+      - name: Send success email
+        if: ${{ success() }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port:    ${{ secrets.SMTP_PORT }}
+          username:       ${{ secrets.SMTP_USERNAME }}
+          password:       ${{ secrets.SMTP_PASSWORD }}
+          subject:        "✅ CI/CD Pipeline Succeeded: ${{ github.workflow }} #${{ github.run_number }}"
+          from:           ${{ secrets.EMAIL_FROM }}
+          to:             ${{ secrets.EMAIL_TO }}
+          body: |
+            Pipeline **${{ github.workflow }}** succeeded.
+            • Branch: ${{ github.ref }}
+            • Commit: ${{ github.sha }}
+            • View run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Send failure email
+        if: ${{ failure() }}
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: ${{ secrets.SMTP_SERVER }}
+          server_port:    ${{ secrets.SMTP_PORT }}
+          username:       ${{ secrets.SMTP_USERNAME }}
+          password:       ${{ secrets.SMTP_PASSWORD }}
+          subject:        "❌ CI/CD Pipeline Failed: ${{ github.workflow }} #${{ github.run_number }}"
+          from:           ${{ secrets.EMAIL_FROM }}
+          to:             ${{ secrets.EMAIL_TO }}
+          body: |
+            Pipeline **${{ github.workflow }}** failed.
+            • Branch: ${{ github.ref }}
+            • Commit: ${{ github.sha }}
+            • Check details: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
