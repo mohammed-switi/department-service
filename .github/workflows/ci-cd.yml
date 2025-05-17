@@ -91,8 +91,13 @@ jobs:
       - name : Determine environment
         id: env
         run: |
-          BRANCH=${GITHUB_REF##*/}
-          case "$BRANCH" in
+          if [ "$EVENT_NAME" = "pull_request" ]; then
+            REF="$PR_BASE_REF"
+          else
+            REF="${GITHUB_REF##*/}"
+          fi
+
+          case "$REF" in
             main)      echo "ENV=production"  >> $GITHUB_ENV ;;
             staging)   echo "ENV=pre-prod"    >> $GITHUB_ENV ;;
             develop)   echo "ENV=development" >> $GITHUB_ENV ;;
