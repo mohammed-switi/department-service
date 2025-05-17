@@ -101,14 +101,14 @@ jobs:
             envname=dev
           fi
 
-          # Construct cluster & service names
-          cluster=department-cluster
-          service=department-task-service-76g9iszy
+          CLUSTER_NAME="department-cluster-${ENV}"
+          SERVICE_NAME="department-task-service-${ENV}"
+          echo "Deploying to cluster=$CLUSTER_NAME service=$SERVICE_NAME"
 
           echo "Deploying to $cluster / $service"
           aws ecs update-service \
-            --cluster "$cluster" \
-            --service "$service" \
+            --cluster  "$CLUSTER_NAME" \
+            --service  "$SERVICE_NAME" \
             --force-new-deployment
 
       - name: Send success email
