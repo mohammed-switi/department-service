@@ -88,27 +88,28 @@ jobs:
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-session-token:     ${{ secrets.AWS_SESSION_TOKEN }}
           aws-region:            ${{ secrets.AWS_REGION }}
+      - name : Determine environment
+        id: env
+        run: |
+          BRANCH=${GITHUB_REF##*/}
+          case "$BRANCH" in
+            main)      echo "ENV=production"  >> $GITHUB_ENV ;;
+            staging)   echo "ENV=pre-prod"    >> $GITHUB_ENV ;;
+            develop)   echo "ENV=development" >> $GITHUB_ENV ;;
+            *)         echo "ENV=development" >> $GITHUB_ENV ;;
+          esac
 
       - name: Deploy to the right ECS service
         run: |
-          # Determine environment from branch name
-          ref=${GITHUB_REF##*/}
-          if [ "$ref" = "main" ]; then
-            envname=prod
-          elif [ "$ref" = "staging" ]; then
-            envname=staging
-          else
-            envname=dev
-          fi
 
-          # Construct cluster & service names
-          cluster=department-cluster
-          service=department-task-service-76g9iszy
+          CLUSTER_NAME="department-cluster-${ENV}"
+          SERVICE_NAME="department-task-service-${ENV}"
+          echo "Deploying to cluster=$CLUSTER_NAME service=$SERVICE_NAME"
 
           echo "Deploying to $cluster / $service"
           aws ecs update-service \
-            --cluster "$cluster" \
-            --service "$service" \
+            --cluster  "$CLUSTER_NAME" \
+            --service  "$SERVICE_NAME" \
             --force-new-deployment
 
       - name: Send success email
