@@ -102,8 +102,8 @@ jobs:
           fi
 
           # Construct cluster & service names
-          cluster=department-cluster-${envname}
-          service=department-service-${envname}
+          cluster=department-cluster
+          service=department-task-service-76g9iszy
 
           echo "Deploying to $cluster / $service"
           aws ecs update-service \
