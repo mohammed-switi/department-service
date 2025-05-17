@@ -1,11 +1,6 @@
 name: CI/CD Pipeline
 
 on:
-  push:
-    branches:
-      - develop
-      - staging
-      - main
   pull_request:
     branches:
       - develop
