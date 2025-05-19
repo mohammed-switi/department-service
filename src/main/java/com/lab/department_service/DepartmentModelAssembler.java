@@ -12,6 +12,7 @@ import static org.springframework.hateoas.server.mvc.WebMvcLinkBuilder.methodOn;
 class DepartmentModelAssembler implements RepresentationModelAssembler<Department, EntityModel<Department>> {
 
 
+
   @Override
   @NonNull
   public EntityModel<Department> toModel(@NonNull Department department) {
